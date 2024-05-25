@@ -58,6 +58,18 @@ func ElectionControler(in chan int) {
 	fmt.Printf("Controle: indica que o valor 1 esta recuperado \n")
 	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
 
+	// mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
+	temp.tipo = 2
+	chans[3] <- temp
+	fmt.Printf("TO AQUI")
+	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
+
+	// mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
+	temp.tipo = 2
+	chans[3] <- temp
+	fmt.Printf("AGORA AQUI")
+	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
+
 	//Finaliza o programa 
 	temp.tipo = 4
 	for i := 0; i < len(chans); i++ {
@@ -68,55 +80,56 @@ func ElectionControler(in chan int) {
 //-----------------------------------------------------------------------------------------------------------------------------
 func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int,) {
 	defer wg.Done()
+    var actualLeader int
+	var bFailed bool = false // todos iniciam sem falha
+
+    actualLeader = leader // indicação do lider veio por parâmatro
+    
 	for{
 	// variaveis locais que indicam se este processo é o lider e se esta ativo
+		select{
+			case temp := <-in: // ler mensagem
+			fmt.Printf("%2d: recebi mensagem %d, [ %d, %d, %d ]\n", TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2]) 	
 
-	var actualLeader int
-	var bFailed bool = false // todos inciam sem falha
-
-	actualLeader = leader // indicação do lider veio por parâmatro
-
-	temp := <-in // ler mensagem
-	fmt.Printf("%2d: recebi mensagem %d, [ %d, %d, %d ]\n", TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2])
-
-	switch temp.tipo {
-
-	case 1: // Realiza a eleicao e atualiza o atual lider para o maior id - Erro
-	
-		if !bFailed {
-			if TaskId > actualLeader {
-			actualLeader = TaskId 
-				fmt.Printf("%2d: novo líder é %d\n", TaskId, actualLeader)
-			}
-			out <- temp
+			switch temp.tipo {
+        
+				case 1: // Realiza a eleicao e atualiza o atual lider para o maior id - Erro
+				
+					if !bFailed {
+						if TaskId > temp.corpo[0] {
+							temp.corpo[0] = TaskId 
+							fmt.Printf("%2d: novo líder é %d\n", TaskId, temp.corpo[0])
+						}
+						out <- temp
+					}
+				case 2:// Mensagem indicando falha do processo / adiciona falha no processo da proxima goroutines
+					{	
+						bFailed = true
+						fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
+						controle <- -5
+					}
+				case 3:// Mensagem do tipo 3 indica que o processo deve se recuperar/ recupera o processo falho da proxima goroutines
+					{	
+						bFailed = false
+						fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
+						controle <- -5
+					}
+				case 4: //Finaliza os Processos e o codigo
+					{
+						fmt.Printf("Processo %d: finalizando\n", TaskId)
+						return
+									
+					}
 			
+				default: //Erro ao levar o tipo de mensagem 
+					{
+						fmt.Printf("%2d: não conheço este tipo de mensagem\n", TaskId)
+						fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
+					}
+	
+			}
 		}
-	case 2:// Mensagem indicando falha do processo / adiciona falha no processo da proxima goroutines
-		{	
-			bFailed = true
-			fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
-			controle <- -5
-		}
-	case 3:// Mensagem do tipo 3 indica que o processo deve se recuperar/ recupera o processo falho da proxima goroutines
-		{	
-			bFailed = false
-			fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
-			controle <- -5
-		}
-	case 4: //Finaliza os Processos e o codigo
-		{
-			fmt.Printf("Processo %d: finalizando\n", TaskId)
-			return
-		}
-
-	default: //Erro ao levar o tipo de mensagem 
-		{
-			fmt.Printf("%2d: não conheço este tipo de mensagem\n", TaskId)
-			fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
-		}
-
-		}
-	}		
+  }
 }
 //-----------------------------------------------------------------------------------------------------------------------------
 func main() {
