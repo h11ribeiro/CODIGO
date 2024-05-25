@@ -44,30 +44,16 @@ func ElectionControler(in chan int) {
 	chans[3] <- temp
 	fmt.Printf("Controle: iniciar nova eleição\n")
 
-
 	// mudar o processo 1 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
 	temp.tipo = 2
 	chans[0] <- temp
 	fmt.Printf("Controle: mudar o processo 1 para falho\n")
 	fmt.Printf("Controle: confirmação %d\n", <-in)
 	
-
 	//muda o processo 1 para funcional Recupera os valores falhos 
 	temp.tipo = 2
 	chans[0] <- temp
 	fmt.Printf("Controle: indica que o valor 1 esta recuperado \n")
-	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
-
-	// mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
-	temp.tipo = 2
-	chans[3] <- temp
-	fmt.Printf("TO AQUI")
-	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
-
-	// mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
-	temp.tipo = 2
-	chans[3] <- temp
-	fmt.Printf("AGORA AQUI")
 	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
 
 	//Finaliza o programa 
