@@ -1,6 +1,9 @@
-// Código exemplo para o trabaho de sistemas distribuidos (eleicao em anel)
-// By Cesar De Rose - 2022
-
+/*
+- Pontifícia Universidade Católica do Rio Grande do Sul
+- Disciplina: de Fundamentos de Programação Paralelo e Distribuído
+- Alunos: Giselle Chaves, Henrique Ribeiro e Gustavo Mesquita
+- Professor: Cesar De Rose
+*/
 package main
 
 import (
@@ -23,41 +26,49 @@ var (
 	controle = make(chan int)
 	wg       sync.WaitGroup // wg is used to wait for the program to finish
 )
-
+//-----------------------------------------------------------------------------------------------------------------------------
 func ElectionControler(in chan int) {
 	defer wg.Done()
-
 	var temp mensagem
-
 	// comandos para o anel iciam aqui
 
 	// mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
-
 	temp.tipo = 2
 	chans[3] <- temp
 	fmt.Printf("Controle: mudar o processo 0 para falho\n")
-
 	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
 
-	// mudar o processo 1 - canal de entrada 0 - para falho (defini mensagem tipo 2 pra isto)
+	// Iniciar nova eleição se o líder falhou
+	temp.tipo = 1
+	temp.corpo[0] = -1
+	chans[3] <- temp
+	fmt.Printf("Controle: iniciar nova eleição\n")
 
+
+	// mudar o processo 1 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
 	temp.tipo = 2
 	chans[0] <- temp
 	fmt.Printf("Controle: mudar o processo 1 para falho\n")
+	fmt.Printf("Controle: confirmação %d\n", <-in)
+	
+
+	//muda o processo 1 para funcional Recupera os valores falhos 
+	temp.tipo = 2
+	chans[0] <- temp
+	fmt.Printf("Controle: indica que o valor 1 esta recuperado \n")
 	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
 
-	// matar os outrs processos com mensagens não conhecidas (só pra cosumir a leitura)
-
+	//Finaliza o programa 
 	temp.tipo = 4
-	chans[1] <- temp
-	chans[2] <- temp
-
-	fmt.Println("\n   Processo controlador concluído\n")
+	for i := 0; i < len(chans); i++ {
+		chans[i] <- temp
+	}
+	fmt.Println("\n   Processo controlador concluído")
 }
-
-func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) {
+//-----------------------------------------------------------------------------------------------------------------------------
+func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int,) {
 	defer wg.Done()
-
+	for{
 	// variaveis locais que indicam se este processo é o lider e se esta ativo
 
 	var actualLeader int
@@ -69,49 +80,62 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 	fmt.Printf("%2d: recebi mensagem %d, [ %d, %d, %d ]\n", TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2])
 
 	switch temp.tipo {
-	case 2:
-		{
+
+	case 1: // Realiza a eleicao e atualiza o atual lider para o maior id - Erro
+	
+		if !bFailed {
+			if TaskId > actualLeader {
+			actualLeader = TaskId 
+				fmt.Printf("%2d: novo líder é %d\n", TaskId, actualLeader)
+			}
+			out <- temp
+			
+		}
+	case 2:// Mensagem indicando falha do processo / adiciona falha no processo da proxima goroutines
+		{	
 			bFailed = true
 			fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
-			fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
 			controle <- -5
 		}
-	case 3:
-		{
+	case 3:// Mensagem do tipo 3 indica que o processo deve se recuperar/ recupera o processo falho da proxima goroutines
+		{	
 			bFailed = false
-
 			fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
-			fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
 			controle <- -5
 		}
-	default:
+	case 4: //Finaliza os Processos e o codigo
+		{
+			fmt.Printf("Processo %d: finalizando\n", TaskId)
+			return
+		}
+
+	default: //Erro ao levar o tipo de mensagem 
 		{
 			fmt.Printf("%2d: não conheço este tipo de mensagem\n", TaskId)
 			fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
 		}
-	}
 
-	fmt.Printf("%2d: terminei \n", TaskId)
+		}
+	}		
 }
-
+//-----------------------------------------------------------------------------------------------------------------------------
 func main() {
 
-	wg.Add(5) // Add a count of four, one for each goroutine
+	wg.Add(5) // Adicione uma contagem de quatro, uma para cada goroutine
 
 	// criar os processo do anel de eleicao
 
-	go ElectionStage(0, chans[3], chans[0], 0) // este é o lider
-	go ElectionStage(1, chans[0], chans[1], 0) // não é lider, é o processo 0
-	go ElectionStage(2, chans[1], chans[2], 0) // não é lider, é o processo 0
-	go ElectionStage(3, chans[2], chans[3], 0) // não é lider, é o processo 0
+	go ElectionStage(0, chans[3], chans[0], 0) // este é o lider o processo 0 
+	go ElectionStage(1, chans[0], chans[1], 0) 
+	go ElectionStage(2, chans[1], chans[2], 0) 
+	go ElectionStage(3, chans[2], chans[3], 0) 
 
-	fmt.Println("\n   Anel de processos criado")
+	fmt.Println("\n  <----- Anel de processos criado ----->")
 
-	// criar o processo controlador
+	go ElectionControler(controle)// criar o processo controlador
 
-	go ElectionControler(controle)
+	fmt.Println("\n   <----- Processo controlador criado -----> \n")
 
-	fmt.Println("\n   Processo controlador criado\n")
-
-	wg.Wait() // Wait for the goroutines to finish\
+	wg.Wait() //Aguarde o término das goroutines
 }
+//-----------------------------------------------------------------------------------------------------------------------------
